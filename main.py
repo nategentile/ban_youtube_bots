@@ -125,36 +125,35 @@ def check_new_comments(youtube, videos):
         current_video = 0
         logging.info("\n- Checking last {} videos\n".format(config.LAST_N_VIDEOS))
         for video_id in videos.keys():
-            if video_id not in ['kVG4Ckq3xKQ', 'pfECL23vS5E', '9RJsaeVFvro']:
-                logging.info("CURRENT VIDEO IS: {}".format(videos[video_id]))
-                logging.info("Checking for new comments...")
-                if video_id not in comment_threads:
-                    comment_threads[video_id] = {}
+            logging.info("CURRENT VIDEO IS: {}".format(videos[video_id]))
+            logging.info("Checking for new comments...")
+            if video_id not in comment_threads:
+                comment_threads[video_id] = {}
 
-                new_comments = get_them_all(
-                    youtube.commentThreads,
-                    {"part": ["snippet", "replies"],
-                     "videoId": video_id,
-                     "order": "time",
-                     "maxResults": 100},
-                    ["snippet", "topLevelComment", "id"],
-                    [])
+            new_comments = get_them_all(
+                youtube.commentThreads,
+                {"part": ["snippet", "replies"],
+                 "videoId": video_id,
+                 "order": "time",
+                 "maxResults": 100},
+                ["snippet", "topLevelComment", "id"],
+                [])
 
-                if len(new_comments) > 0:
-                    logging.info("Adding {} new comments\n".format(len(new_comments)))
-                else:
-                    logging.info("No new comments\n")
+            if len(new_comments) > 0:
+                logging.info("Adding {} new comments\n".format(len(new_comments)))
+            else:
+                logging.info("No new comments\n")
 
-                for key in new_comments.keys():
-                    comment_threads[video_id][key] = {
-                        key: new_comments[key]["snippet"]["topLevelComment"]["snippet"],
-                        "responses": new_comments[key].get("replies", {"comments": []})["comments"]
-                    }
+            for key in new_comments.keys():
+                comment_threads[video_id][key] = {
+                    key: new_comments[key]["snippet"]["topLevelComment"]["snippet"],
+                    "responses": new_comments[key].get("replies", {"comments": []})["comments"]
+                }
 
-                current_video += 1
+            current_video += 1
 
-                if current_video == config.LAST_N_VIDEOS:
-                    break
+            if current_video == config.LAST_N_VIDEOS:
+                break
 
         save_into_storage('storage/comments.pickle', comment_threads)
     return comment_threads
