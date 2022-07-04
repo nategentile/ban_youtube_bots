@@ -1,0 +1,7 @@
+credentials.json
+logfile.txt
+token.json
+storage/*
+*.pickle
+venv
+.idea
