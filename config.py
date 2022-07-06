@@ -7,7 +7,7 @@ MODERATE = True
 LAST_N_VIDEOS = 20
 # If set to True, it will request all the videos from the main playlist, set False to avoid the request and use
 # the cached list of videos
-CHECK_FOR_NEW_VIDEOS = False
+CHECK_FOR_NEW_VIDEOS = True
 # If set to True, it will request all the comments for all the videos, set False to avoid reloading the comments and
 # use the caches list of comments
 CHECK_FOR_NEW_COMMENTS = True
@@ -18,6 +18,7 @@ UNATTENDED = True
 # For normal use, set to 20
 # 10 = DEBUG, 20 = INFO, 30 = WARNING, 40 = ERROR
 LOG_LEVEL = 20
+
 
 # Put here your channel URL
 MY_CHANNEL_URL = ''

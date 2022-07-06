@@ -14,7 +14,7 @@ import skimage
 import logging
 import config
 
-original_nate_image = Image.open("storage/nate.jpg")
+owner_profile_picture = Image.open("storage/profile_pic.jpg")
 
 
 def check_is_spam(comment):
@@ -43,7 +43,7 @@ def check_is_spam(comment):
             handle.write(data)
 
         impostor = Image.open('storage/impostor.jpg')
-        nate_resized_image = original_nate_image.resize((impostor.size[0], impostor.size[1]))
+        nate_resized_image = owner_profile_picture.resize((impostor.size[0], impostor.size[1]))
 
         with open('storage/nate_resized.jpg', 'wb') as handle:
             nate_resized_image.save(handle)
@@ -109,18 +109,17 @@ def get_credentials():
     :return: credentials object from google API
     """
     creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', config.SCOPES)
+    if os.path.exists('storage/token.json'):
+        creds = Credentials.from_authorized_user_file('storage/token.json', config.SCOPES)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', config.SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file('storage/credentials.json', config.SCOPES)
             creds = flow.run_local_server(port=2725)
         # Save the credentials for the next time
-        with open('token.json', 'w') as token:
+        with open('storage/token.json', 'w') as token:
             token.write(creds.to_json())
     logging.info("Authorized into Youtube")
     return creds
