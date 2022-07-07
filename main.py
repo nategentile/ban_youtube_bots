@@ -103,7 +103,7 @@ def get_them_all(api_function, api_kwargs, key_path, value_path, prepopulated_li
     return stuff
 
 
-def get_credentials():
+def get_credentials(role):
     """
     Do the auth process on the google API
     :return: credentials object from google API
@@ -116,7 +116,7 @@ def get_credentials():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file('storage/credentials.json', config.SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(f"storage/{role}-credentials.json", config.SCOPES)
             creds = flow.run_local_server(port=2725)
         # Save the credentials for the next time
         with open('storage/token.json', 'w') as token:
@@ -349,20 +349,24 @@ def purge_comments(youtube, videos, comment_threads):
 
         if current_video == config.LAST_N_VIDEOS:
             break
+            
+def create_client(role):
+    # Query Youtube API for authentication or load from file
+    creds = get_credentials(role)
+    # Create API client
+    youtube = googleapiclient.discovery.build(config.API_SERVICE_NAME, config.API_VERSION, credentials=creds)
 
 
 def main():
     # Setup both file logging and terminal on-screen logs
     setup_logger()
-    # Query Youtube API for authentication or load from file
-    creds = get_credentials()
-    # Create API client
-    youtube = googleapiclient.discovery.build(config.API_SERVICE_NAME, config.API_VERSION, credentials=creds)
     # Load videos and comments, check new ones on the API if specified on config file
-    videos = load_videos(youtube)
-    comment_threads = load_comments(youtube, videos)
+    youtube_reader = create_client("reader")
+    videos = load_videos(youtube_reader)
+    comment_threads = load_comments(youtube_reader, videos)
     # Now we're checking all the comments video per video and purge them
-    purge_comments(youtube, videos, comment_threads)
+    youtube_manager = create_client("manager")
+    purge_comments(youtube_manager, videos, comment_threads)
 
 
 if __name__ == '__main__':
