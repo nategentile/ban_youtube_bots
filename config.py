@@ -11,6 +11,9 @@ CHECK_FOR_NEW_VIDEOS = True
 # If set to True, it will request all the comments for all the videos, set False to avoid reloading the comments and
 # use the caches list of comments
 CHECK_FOR_NEW_COMMENTS = True
+# If set to True, it will check for users that have the same profile picture.
+# You must put the profile picture in storage/profile_pic.jpg
+CHECK_FOR_PROFILE_PICTURE = False
 # Set to True to fake all the requests to the Youtube API, it's useful to test something fast without consuming quota
 TEST_MODE = False
 # If set to True, the script will never ask you for anything, it runs by itself
@@ -23,6 +26,7 @@ LOG_LEVEL = 20
 # Put here your channel URL
 MY_CHANNEL_URL = ''
 # Put here a playlist id with all the videos you want to clean
+# Playlist id can be found in the URL of the playlist, for example: https://www.youtube.com/playlist?list=PL6gx4Cwl9DGAj_Q-xgJzDQYZr-QSjS5sY
 PLAYLIST_UPLOADS_ID = ''
 
 # Put in this list all the words you want to search in the username of the comment to ban
