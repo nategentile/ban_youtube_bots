@@ -17,24 +17,28 @@ import config
 original_nate_image = Image.open("storage/nate.jpg")
 
 
-def check_is_spam(message):
+def check_is_spam(comment):
+    """
+    :param comment: Dictionary from API doc - https://developers.google.com/youtube/v3/docs/comments#resource
+    :return: bool - is the comment spam?
+    """
     # Check if it's me
-    message = message["snippet"]
-    if message['authorChannelUrl'] == config.MY_CHANNEL_URL:
+    comment = comment["snippet"]
+    if comment['authorChannelUrl'] == config.MY_CHANNEL_URL:
         return False
     # Check banned words in comment
     for word in config.name_banned_words:
-        if message["authorDisplayName"].lower().find(word) != -1:
+        if comment["authorDisplayName"].lower().find(word) != -1:
             return True
 
     for word in config.body_banned_words:
-        if message["textOriginal"].lower().find(word) != -1:
+        if comment["textOriginal"].lower().find(word) != -1:
             return True
 
     # Check if profile image is the same as my image
     try:
-        logging.debug("Downloading image for user profile: {}".format(message["authorProfileImageUrl"]))
-        data = requests.get(message["authorProfileImageUrl"]).content
+        logging.debug("Downloading image for user profile: {}".format(comment["authorProfileImageUrl"]))
+        data = requests.get(comment["authorProfileImageUrl"]).content
         with open('storage/impostor.jpg', 'wb') as handle:
             handle.write(data)
 
@@ -49,7 +53,7 @@ def check_is_spam(message):
 
         logging.debug("Difference score from my profile pic is {}".format(difference))
         if difference > 0.8:
-            with open('impostors/{}.jpg'.format(message["authorChannelId"]["value"]), 'wb') as handle:
+            with open('impostors/{}.jpg'.format(comment["authorChannelId"]["value"]), 'wb') as handle:
                 impostor.save(handle)
             return True
         return False
@@ -58,6 +62,18 @@ def check_is_spam(message):
 
 
 def get_them_all(api_function, api_kwargs, key_path, value_path, prepopulated_list=[]):
+    """
+    Query the endpoint all the way through the pages (avoing google pagination) and returns a dictionary with all the
+    responses in a dictionary with the key of your choice.
+
+    :param api_function: googleapiclient API function to query, example: youtube.playlistItems
+    :param api_kwargs: list of attributes to pass to the API endpoint in a dictionary - check API docs
+    :param key_path: list of strings, containing the path to the item you want to use as key from the response
+    :param value_path: list of strings, containing the path to the item you want to use as value from the response
+    :param prepopulated_list: in case you want to update a previously existing list, and want the queries to stop when
+                              the query is returning pre-existing values, provide the values you already have.
+    :return: Dictionary
+    """
     next_page_token = " "
     stuff = {}
     key_path_repeated = False
@@ -88,6 +104,10 @@ def get_them_all(api_function, api_kwargs, key_path, value_path, prepopulated_li
 
 
 def get_credentials():
+    """
+    Do the auth process on the google API
+    :return: credentials object from google API
+    """
     creds = None
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', config.SCOPES)
@@ -102,10 +122,17 @@ def get_credentials():
         # Save the credentials for the next time
         with open('token.json', 'w') as token:
             token.write(creds.to_json())
+    logging.info("Authorized into Youtube")
     return creds
 
 
 def load_from_storage(file_name, default_value):
+    """
+    Load any variable from stored pickles
+    :param file_name: name of the file where the data is stored
+    :param default_value: if the file doesn't exist, get a default value instead
+    :return: the variable stored in the pickle
+    """
     if os.path.exists(file_name):
         with open(file_name, 'rb') as handle:
             return pickle.load(handle)
@@ -114,11 +141,22 @@ def load_from_storage(file_name, default_value):
 
 
 def save_into_storage(file_name, data):
+    """
+    Save any variable into a pickle file, to store data between executions
+    :param file_name: name of the file where the data will be stored
+    :param data: data to store
+    """
     with open(file_name, 'wb') as handle:
         pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def check_new_comments(youtube, videos):
+def load_comments(youtube, videos):
+    """
+    Get a dictionary indexed by video Id and every comment thread with its responses inside.
+    :param youtube: Youtube API client object
+    :param videos: Dictionary of video names indexed by video ID
+    :return: Dictionary
+    """
     comment_threads = load_from_storage('storage/comments.pickle', {})
 
     if config.CHECK_FOR_NEW_COMMENTS:
@@ -160,6 +198,12 @@ def check_new_comments(youtube, videos):
 
 
 def comment_purge_paginated(youtube, to_delete_comments_id, deleted):
+    """
+    Delete or ban comments paginated by 25 items, as Google likes
+    :param youtube: Youtube API client object
+    :param to_delete_comments_id: list of comments id to delete
+    :param deleted: list of comments already deleted (from a previous session)
+    """
     current_page = 0
     page_size = 25
 
@@ -185,25 +229,33 @@ def comment_purge_paginated(youtube, to_delete_comments_id, deleted):
 
 
 def check_comments_for_spam(comments, deleted):
-    to_delete = []
+    """
+    Iterate over video comments to detect spam
+    :param comments: Dictionary indexed by video with all the comments and responses
+    :param deleted: list of previously deleted comments
+    :return: list of comments id to delete/purge
+    """
+    spam_comments = []
     # Checking spam
     for key, comment in comments.items():
         for reply in comment["responses"]:
             if check_is_spam(reply):
-                to_delete.append(reply)
-    logging.info("{} spam comments detected".format(len(to_delete)))
+                spam_comments.append(reply)
 
     to_delete_comments_id = []
-    if config.UNATTENDED:
-        show_comments = True
-    else:
-        show_comments = input("Show comments to delete? [y/n]")
 
+    show_comments = True
+
+    if not config.UNATTENDED:
+        if input("Show comments to delete? [y/n]") != "y":
+            show_comments = False
+
+    logging.info("{} spam comments detected".format(len(spam_comments)))
     # Show & gather all the comments into a list, check if not deleted previously
-    for comment in to_delete:
+    for comment in spam_comments:
         if comment["id"] not in deleted:
             to_delete_comments_id.append(comment["id"])
-            if show_comments == "y":
+            if show_comments:
                 logging.info("{}: {}".format(comment["snippet"]["authorDisplayName"], comment["snippet"]["textOriginal"]))
         else:
             logging.info("Comment {} was already deleted!".format(comment["id"]))
@@ -213,7 +265,13 @@ def check_comments_for_spam(comments, deleted):
     return to_delete_comments_id
 
 
-def check_new_videos(youtube):
+def load_videos(youtube):
+    """
+    Load a dictionary indexed by video id for all the videos on the channel.
+    Only check for new videos if config CHECK_FOR_NEW_VIDEOS is set to True
+    :param youtube: Youtube API client object
+    :return: Dictionary
+    """
     # Loading previously stored videos
     videos = load_from_storage('storage/videos.pickle', {})
 
@@ -236,6 +294,12 @@ def check_new_videos(youtube):
 
 
 def execute_youtube_query(query):
+    """
+    Query the API and return the response, if settings TEST_MODE set to True, no queries will be done, and a mock empty
+    dict will be returned instead.
+    :param query: Google API query ready to execute
+    :return: Dictionary
+    """
     if not config.TEST_MODE:
         logging.debug("Making query to Youtube API")
         return query.execute()
@@ -244,7 +308,11 @@ def execute_youtube_query(query):
         return {"items": {}}
 
 
-def main():
+def setup_logger():
+    """
+    Set a simple logger to show text on terminal and log into a file
+    :return:
+    """
     logging.basicConfig(filename="logfile.txt",
                         format="%(asctime)s %(message)s",
                         filemode="w",
@@ -254,15 +322,16 @@ def main():
 
     logging.info("-- YOUTUBE SPAM CHECKER RUNNING --\n")
 
-    creds = get_credentials()
-    logging.info("Authorized into Youtube")
 
-    # Create API client
-    youtube = googleapiclient.discovery.build(config.API_SERVICE_NAME, config.API_VERSION, credentials=creds)
-
-    videos = check_new_videos(youtube)
-    comment_threads = check_new_comments(youtube, videos)
-
+def purge_comments(youtube, videos, comment_threads):
+    """
+    Purge/Delete comments from Youtube
+    :param youtube: Youtube API client object
+    :param videos: Dictionary of video names indexed by video ID
+    :param comment_threads: Dictionary containing comment threads indexed by video_id, cointaining all responses in
+                            Google API Style
+    """
+    # Loading deleted comments list
     logging.info("Loading previously deleted comments")
     deleted = load_from_storage('storage/deleted.pickle', [])
     logging.info("We deleted {} yet!".format(len(deleted)))
@@ -281,6 +350,20 @@ def main():
 
         if current_video == config.LAST_N_VIDEOS:
             break
+
+
+def main():
+    # Setup both file logging and terminal on-screen logs
+    setup_logger()
+    # Query Youtube API for authentication or load from file
+    creds = get_credentials()
+    # Create API client
+    youtube = googleapiclient.discovery.build(config.API_SERVICE_NAME, config.API_VERSION, credentials=creds)
+    # Load videos and comments, check new ones on the API if specified on config file
+    videos = load_videos(youtube)
+    comment_threads = load_comments(youtube, videos)
+    # Now we're checking all the comments video per video and purge them
+    purge_comments(youtube, videos, comment_threads)
 
 
 if __name__ == '__main__':
