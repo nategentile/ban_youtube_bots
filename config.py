@@ -4,7 +4,7 @@
 # Set False to ask the API to delete the messages
 MODERATE = True
 # How many videos you want to check, if you set 1, only the last video will be checked, set 5 for the last five and so
-LAST_N_VIDEOS = 20
+LAST_N_VIDEOS = 5
 # If set to True, it will request all the videos from the main playlist, set False to avoid the request and use
 # the cached list of videos
 CHECK_FOR_NEW_VIDEOS = True
@@ -19,11 +19,10 @@ UNATTENDED = True
 # 10 = DEBUG, 20 = INFO, 30 = WARNING, 40 = ERROR
 LOG_LEVEL = 20
 
-
 # Put here your channel URL
-MY_CHANNEL_URL = ''
+MY_CHANNEL_URL = 'http://www.youtube.com/channel/UC36xmz34q02JYaZYKrMwXng'
 # Put here a playlist id with all the videos you want to clean
-PLAYLIST_UPLOADS_ID = ''
+PLAYLIST_UPLOADS_ID = 'UU36xmz34q02JYaZYKrMwXng'
 
 # Put in this list all the words you want to search in the username of the comment to ban
 name_banned_words = ["telegram", "whatsapp", "elegra", "hatsap", "nate gentile", "nate_gentile", "⓪", "①", "②", "③",

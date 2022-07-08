@@ -45,7 +45,7 @@ def check_is_spam(comment):
         impostor = Image.open('storage/impostor.jpg')
         nate_resized_image = owner_profile_picture.resize((impostor.size[0], impostor.size[1]))
 
-        with open('storage/nate_resized.jpg', 'wb') as handle:
+        with open('storage/profile_pic.jpg', 'wb') as handle:
             nate_resized_image.save(handle)
 
         difference = skimage.metrics.structural_similarity(np.asfarray(impostor.convert('L')),
@@ -159,6 +159,7 @@ def load_comments(youtube, videos):
     comment_threads = load_from_storage('storage/comments.pickle', {})
 
     if config.CHECK_FOR_NEW_COMMENTS:
+        comment_threads = {}
         current_video = 0
         logging.info("\n- Checking last {} videos\n".format(config.LAST_N_VIDEOS))
         for video_id in videos.keys():
@@ -208,7 +209,8 @@ def comment_purge_paginated(youtube, to_delete_comments_id, deleted):
 
     while current_page < len(to_delete_comments_id) / page_size:
         try:
-            paginated_items = [a for a in to_delete_comments_id[current_page * page_size:(current_page + 1) * page_size]]
+            paginated_items = \
+                [a for a in to_delete_comments_id[current_page * page_size:(current_page + 1) * page_size]]
             if config.MODERATE:
                 action = youtube.comments().setModerationStatus(id=paginated_items, moderationStatus="rejected",
                                                                 banAuthor=True)
@@ -255,7 +257,8 @@ def check_comments_for_spam(comments, deleted):
         if comment["id"] not in deleted:
             to_delete_comments_id.append(comment["id"])
             if show_comments:
-                logging.info("{}: {}".format(comment["snippet"]["authorDisplayName"], comment["snippet"]["textOriginal"]))
+                logging.info(
+                    "{}: {}".format(comment["snippet"]["authorDisplayName"], comment["snippet"]["textOriginal"]))
         else:
             logging.info("Comment {} was already deleted!".format(comment["id"]))
 
@@ -283,10 +286,11 @@ def load_videos(youtube):
 
         if len(new_videos) > 0:
             logging.info("Adding {} new videos\n".format(len(new_videos)))
-            for key, val in new_videos.items():
-                videos[key] = val
+            new_videos.update(videos)
+            videos = new_videos
         else:
             logging.info("No new videos\n")
+
         save_into_storage('storage/videos.pickle', videos)
 
     return videos

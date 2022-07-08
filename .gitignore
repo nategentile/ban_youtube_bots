@@ -1,6 +1,6 @@
-credentials.json
+storage/credentials.json
 logfile.txt
-token.json
+storage/token.json
 storage/*
 *.pickle
 venv
