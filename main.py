@@ -14,7 +14,7 @@ import skimage
 import logging
 import config
 
-owner_profile_picture = Image.open("storage/profile_pic.jpg")
+owner_profile_picture = Image.open("storage/profile_pic.jpg") if config.CHECK_FOR_PROFILE_PICTURE else None
 
 
 def check_is_spam(comment):
@@ -36,36 +36,36 @@ def check_is_spam(comment):
             return True
 
     # Check if profile image is the same as my image
-    try:
-        logging.debug("Downloading image for user profile: {}".format(comment["authorProfileImageUrl"]))
-        data = requests.get(comment["authorProfileImageUrl"]).content
-        with open('storage/impostor.jpg', 'wb') as handle:
-            handle.write(data)
+    if config.CHECK_FOR_PROFILE_PICTURE:
+        try:
+            logging.debug("Downloading image for user profile: {}".format(comment["authorProfileImageUrl"]))
+            data = requests.get(comment["authorProfileImageUrl"]).content
+            with open('storage/impostor.jpg', 'wb') as handle:
+                handle.write(data)
 
-        impostor = Image.open('storage/impostor.jpg')
-        nate_resized_image = owner_profile_picture.resize((impostor.size[0], impostor.size[1]))
+            impostor = Image.open('storage/impostor.jpg')
+            nate_resized_image = owner_profile_picture.resize((impostor.size[0], impostor.size[1]))
 
-        with open('storage/profile_pic.jpg', 'wb') as handle:
-            nate_resized_image.save(handle)
+            with open('storage/nate_resized.jpg', 'wb') as handle:
+                nate_resized_image.save(handle)
 
-        difference = skimage.metrics.structural_similarity(np.asfarray(impostor.convert('L')),
-                                                           np.asfarray(nate_resized_image.convert('L')))
+            difference = skimage.metrics.structural_similarity(np.asfarray(impostor.convert('L')),
+                                                               np.asfarray(nate_resized_image.convert('L')))
 
-        logging.debug("Difference score from my profile pic is {}".format(difference))
-        if difference > 0.8:
-            with open('impostors/{}.jpg'.format(comment["authorChannelId"]["value"]), 'wb') as handle:
-                impostor.save(handle)
-            return True
-        return False
-    except Exception:  # Too broad, but I don't have time for this
-        return False
+            logging.debug("Difference score from my profile pic is {}".format(difference))
+            if difference > 0.8:
+                with open('impostors/{}.jpg'.format(comment["authorChannelId"]["value"]), 'wb') as handle:
+                    impostor.save(handle)
+                return True
+            return False
+        except Exception:  # Too broad, but I don't have time for this
+            return False
 
 
 def get_them_all(api_function, api_kwargs, key_path, value_path, prepopulated_list=[]):
     """
     Query the endpoint all the way through the pages (avoing google pagination) and returns a dictionary with all the
     responses in a dictionary with the key of your choice.
-
     :param api_function: googleapiclient API function to query, example: youtube.playlistItems
     :param api_kwargs: list of attributes to pass to the API endpoint in a dictionary - check API docs
     :param key_path: list of strings, containing the path to the item you want to use as key from the response
@@ -103,7 +103,7 @@ def get_them_all(api_function, api_kwargs, key_path, value_path, prepopulated_li
     return stuff
 
 
-def get_credentials():
+def get_credentials(role):
     """
     Do the auth process on the google API
     :return: credentials object from google API
@@ -116,7 +116,7 @@ def get_credentials():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file('storage/credentials.json', config.SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(f"storage/{role}-credentials.json", config.SCOPES)
             creds = flow.run_local_server(port=2725)
         # Save the credentials for the next time
         with open('storage/token.json', 'w') as token:
@@ -156,8 +156,6 @@ def load_comments(youtube, videos):
     :param videos: Dictionary of video names indexed by video ID
     :return: Dictionary
     """
-    comment_threads = load_from_storage('storage/comments.pickle', {})
-
     if config.CHECK_FOR_NEW_COMMENTS:
         comment_threads = {}
         current_video = 0
@@ -194,6 +192,8 @@ def load_comments(youtube, videos):
                 break
 
         save_into_storage('storage/comments.pickle', comment_threads)
+    else:
+        comment_threads = load_from_storage('storage/comments.pickle', {})
     return comment_threads
 
 
@@ -209,8 +209,7 @@ def comment_purge_paginated(youtube, to_delete_comments_id, deleted):
 
     while current_page < len(to_delete_comments_id) / page_size:
         try:
-            paginated_items = \
-                [a for a in to_delete_comments_id[current_page * page_size:(current_page + 1) * page_size]]
+            paginated_items = [a for a in to_delete_comments_id[current_page * page_size:(current_page + 1) * page_size]]
             if config.MODERATE:
                 action = youtube.comments().setModerationStatus(id=paginated_items, moderationStatus="rejected",
                                                                 banAuthor=True)
@@ -257,8 +256,7 @@ def check_comments_for_spam(comments, deleted):
         if comment["id"] not in deleted:
             to_delete_comments_id.append(comment["id"])
             if show_comments:
-                logging.info(
-                    "{}: {}".format(comment["snippet"]["authorDisplayName"], comment["snippet"]["textOriginal"]))
+                logging.info("{}: {}".format(comment["snippet"]["authorDisplayName"], comment["snippet"]["textOriginal"]))
         else:
             logging.info("Comment {} was already deleted!".format(comment["id"]))
 
@@ -290,7 +288,6 @@ def load_videos(youtube):
             videos = new_videos
         else:
             logging.info("No new videos\n")
-
         save_into_storage('storage/videos.pickle', videos)
 
     return videos
@@ -355,18 +352,23 @@ def purge_comments(youtube, videos, comment_threads):
             break
 
 
+def create_client(role):
+    # Query Youtube API for authentication or load from file
+    creds = get_credentials(role)
+    # Create API client
+    return googleapiclient.discovery.build(config.API_SERVICE_NAME, config.API_VERSION, credentials=creds)
+
+
 def main():
     # Setup both file logging and terminal on-screen logs
     setup_logger()
-    # Query Youtube API for authentication or load from file
-    creds = get_credentials()
-    # Create API client
-    youtube = googleapiclient.discovery.build(config.API_SERVICE_NAME, config.API_VERSION, credentials=creds)
     # Load videos and comments, check new ones on the API if specified on config file
-    videos = load_videos(youtube)
-    comment_threads = load_comments(youtube, videos)
+    youtube_reader = create_client("reader")
+    videos = load_videos(youtube_reader)
+    comment_threads = load_comments(youtube_reader, videos)
     # Now we're checking all the comments video per video and purge them
-    purge_comments(youtube, videos, comment_threads)
+    youtube_manager = create_client("manager")
+    purge_comments(youtube_manager, videos, comment_threads)
 
 
 if __name__ == '__main__':
