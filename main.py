@@ -14,7 +14,7 @@ import skimage
 import logging
 import config
 
-owner_profile_picture = Image.open("storage/profile_pic.jpg")
+owner_profile_picture = Image.open("storage/profile_pic.jpg") if config.CHECK_FOR_PROFILE_PICTURE else None
 
 
 def check_is_spam(comment):
@@ -36,29 +36,30 @@ def check_is_spam(comment):
             return True
 
     # Check if profile image is the same as my image
-    try:
-        logging.debug("Downloading image for user profile: {}".format(comment["authorProfileImageUrl"]))
-        data = requests.get(comment["authorProfileImageUrl"]).content
-        with open('storage/impostor.jpg', 'wb') as handle:
-            handle.write(data)
+    if config.CHECK_FOR_PROFILE_PICTURE:
+        try:
+            logging.debug("Downloading image for user profile: {}".format(comment["authorProfileImageUrl"]))
+            data = requests.get(comment["authorProfileImageUrl"]).content
+            with open('storage/impostor.jpg', 'wb') as handle:
+                handle.write(data)
 
-        impostor = Image.open('storage/impostor.jpg')
-        nate_resized_image = owner_profile_picture.resize((impostor.size[0], impostor.size[1]))
+            impostor = Image.open('storage/impostor.jpg')
+            nate_resized_image = owner_profile_picture.resize((impostor.size[0], impostor.size[1]))
 
-        with open('storage/nate_resized.jpg', 'wb') as handle:
-            nate_resized_image.save(handle)
+            with open('storage/nate_resized.jpg', 'wb') as handle:
+                nate_resized_image.save(handle)
 
-        difference = skimage.metrics.structural_similarity(np.asfarray(impostor.convert('L')),
-                                                           np.asfarray(nate_resized_image.convert('L')))
+            difference = skimage.metrics.structural_similarity(np.asfarray(impostor.convert('L')),
+                                                            np.asfarray(nate_resized_image.convert('L')))
 
-        logging.debug("Difference score from my profile pic is {}".format(difference))
-        if difference > 0.8:
-            with open('impostors/{}.jpg'.format(comment["authorChannelId"]["value"]), 'wb') as handle:
-                impostor.save(handle)
-            return True
-        return False
-    except Exception:  # Too broad, but I don't have time for this
-        return False
+            logging.debug("Difference score from my profile pic is {}".format(difference))
+            if difference > 0.8:
+                with open('impostors/{}.jpg'.format(comment["authorChannelId"]["value"]), 'wb') as handle:
+                    impostor.save(handle)
+                return True
+            return False
+        except Exception:  # Too broad, but I don't have time for this
+            return False
 
 
 def get_them_all(api_function, api_kwargs, key_path, value_path, prepopulated_list=[]):
