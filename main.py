@@ -355,6 +355,8 @@ def create_client(role):
     creds = get_credentials(role)
     # Create API client
     youtube = googleapiclient.discovery.build(config.API_SERVICE_NAME, config.API_VERSION, credentials=creds)
+    
+    return youtube
 
 
 def main():
